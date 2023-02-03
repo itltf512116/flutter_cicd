@@ -1,0 +1,79 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:android)
+
+platform :android do
+  desc "Runs all the tests"
+  lane :test do
+    gradle(task: "test")
+  end
+
+  desc "Submit a new Beta Build to Crashlytics Beta"
+  lane :beta do |options|
+    # gradle(task: "clean assembleRelease")
+    # crashlytics
+  
+    # sh "your_script.sh"
+    # You can also use other beta testing services here
+
+    gitBranch=git_branch().downcase
+    puts "git_branch:#{gitBranch}" # 获取branch name
+
+    # Call Flutter Build
+    Dir.chdir "../.." do 
+      sh("flutter", "build", "appbundle", "--release") 
+    end 
+
+    # 获取flutter 设置的app version {"version_code"=>"28", "version_name"=>"1.1.29"}
+    # flutter_version()["version_code"]
+    puts flutter_version()
+
+    versionName=flutter_version()["version_name"]
+    # 改名
+    apkName="#{gitBranch}-#{versionName}.apk"
+    # 上传到蒲公英
+    sh "pwd && mv ../../build/app/outputs/flutter-apk/app-release.apk ../../build/app/outputs/flutter-apk/#{apkName}"
+    sh "cd ../../build/app/outputs/flutter-apk && ls"
+    
+    pgyer(
+      api_key:ENV["ENV_PGYER_API_KEY"],
+        apk:"#{Dir.pwd}/../../build/app/outputs/flutter-apk/#{apkName}",
+        update_description:"update by fastlane,apk:#{apkName}"
+      )
+
+    # 发送到企业微信,借助蒲公英
+    notifyworker(
+      webhook: ENV["ENV_WECHAT_WEBHOOK_URL"],    #str (required paramter) 蒲公英有教程，https://seed.pgyer.com/WGNQkEpP
+      api_key: ENV["ENV_PGYER_API_KEY"],    #str (required paramter) 来自蒲公英
+      app_key: ENV["ENV_PGYER_APP_KEY"] ,   #str (required paramter) 来自蒲公英
+      updateDes: "Note:Android has updated on #{gitBranch} with version #{versionName}", #str (optional paramter)
+      platform: "WeChat",  #str (optional paramter(DingTalk,WeChat) default: dingTalk )
+      atAll: "true"  #bool (optional paramter)
+    )
+  end
+
+  desc "Deploy a new version to the Google Play"
+  lane :deploy do
+    gradle(task: "clean assembleRelease")
+    upload_to_play_store
+  end
+
+  lane :test1 do 
+
+    puts ENV["PGYER_API_KEY"]
+  end
+
+end
